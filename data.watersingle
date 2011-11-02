@@ -1,0 +1,17 @@
+LAMMPS 'data.' description - created with Brahms (www.personal.soton.ac.uk/orsi/brahms)
+
+       15 atoms
+       14 bonds
+       16 angles
+
+        6 atom types
+        5 bond types
+        5 angle types
+
+    -34.02342     34.02342      xlo xhi
+    -34.02342     34.02342      ylo yhi
+    -31.76297     31.76297      zlo zhi
+
+Atoms
+
+   1    1    0.0000    0.0000    0.0000      0   0.00   0.44888  -0.15780   0.05395  3.0  2.8

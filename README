@@ -1,0 +1,165 @@
+####################################################################################################
+###   SmartBuilder(MIX) for LAMMPS :: Create n-phase biomembrane systems from single molecule    ### 
+###   representations in LAMMPS native format.                                                   ###
+###											         ###	
+###								                                 ###
+###   Funding gratefully provided by Unilever plc and University of Southampton.                 ###
+###                                                                                              ###
+###   All code is "as is" and there is no implied warranty.                                      ###
+###                                                                                              ###
+###   Donovan, Orsi and Essex (2011)		                                                 ###
+###                                                                                              ###
+####################################################################################################
+
+What you need to run
+---------------------
+
+1. A python interpreter (python.org) and a copy of LAMMPS 
+(LAMMPS Molecular Dynamics Simulator: http://lammps.sandia.gov/) 
+
+2. The code files included in this package - you will want to replace some of these default 
+files with your own lipid files depending on your own desires and preferences. The included 
+files will work with the force-field of Orsi et al, but you may use whatever force field is 
+appropriate to your systems. The current example uses a DOPC molecule (Orsi et al) as an example, 
+hence the use of the suffix <dopc>, but you can use any lipid scheme of your choosing.
+
+
+File structure
+--------------
+ ___________________________________________________________________________________________________
+|<Input files>            |                                                                         |
+|_________________________|_________________________________________________________________________|
+|cfg.py                   |Initial setup and configuration files. (lipid, solvent, box dimensions). |
+|                         |This contains the user definable parameter set such as number of lipids, |
+|                         |solvent molecules, box dimensions, bond/LJ scaling and interdigitation   |
+|                         |of tails. All filenames that are used for reading and writing can be     |
+|                         |found in this file.                                                      |  
+|_________________________|_________________________________________________________________________|
+|meta.dopc                |Master meta file. (Lennard Jones (LJ), LJ scaling). Not normally part of |
+|                         |the LAMMPS toolkit, we use this as a master file. It contains Lennard    |
+|                         |Jones interaction parameters such as sigma and epsilon which will be     |
+|                         |propagated through the system. This file is utilized in the construction |
+|                         |of the force-field - especially the Lennard Jones cross terms and        |
+|                         |the generation of scaled LJ and nearest neighbour bonded interactions.   |
+|                         |The meta file overrides other constants found in other files.            |
+|_________________________|_________________________________________________________________________|
+|data.dopcsingle          |LAMMPS native format single molecule file around the Cartesian origin.   |
+|		          |Lipids are defined with anisotropy pointing downwards (use the current   |
+|                         |example for guidance). Multiple species can be used and the naming       |
+|                         |convention is shown in <cfg.py>. The example here is DOPC, but other     |
+|                         |lipid species can be used - just ensure names match in <cfg.py>.	    |	
+|_________________________|_________________________________________________________________________|
+|data.watersingle         |LAMMPS solvent molecule file around the Cartesian origin (0,0,0).        |
+|_________________________|_________________________________________________________________________|
+|forcefield.dopc          |LAMMPS native force field. Used for reading in current settings.         |
+|_________________________|_________________________________________________________________________|
+|in.dopc                  |LAMMPS standard input. This file contains references to the files        |
+|                         |generated in cfg.py that will be called at runtime.                      |
+|_________________________|_________________________________________________________________________|
+|SmartBuilder.py          |Single file that contains all the routines for creating bilayers from    |
+|                         |the input files.                                                         |
+|_________________________|_________________________________________________________________________|
+|<Generated files>        |                                                                         |
+|_________________________|_________________________________________________________________________|
+|forcefield.dopc_scaled   |Computed force field based on cfg.py and meta.dopc. Portion of the file  |
+|			  |generated and recomputed from <meta.dopc> according to your preferences. |
+|                         |This file could be renamed to overwrite the read-in force field if       |
+|                         |desired.                                                                 |
+|_________________________|_________________________________________________________________________|
+|data.sys                 |Output datafile computed from input files gives.                         |
+|			  |                                                                         |
+|                         |                                                                         |
+|_________________________|_________________________________________________________________________|
+
+
+Building the system
+--------------------
+
+A. Get a single molecule system working. It is imperative that a single lipid system works on its own 
+since systems will be built on these foundations. Ensure you have a system with no errors that runs 
+with LAMMPS with no errors. If you are using the existing molecule representations (included), make sure 
+that you have the requisite files and pair styles. See here for copying and making the pair-styles in 
+your LAMMPS build.
+
+B. Use the meta.* and forcefield.* files to build the parameters of the systems - the LJ interactions 
+and scaling between cross terms. The Lorentz-Berthelot scheme is implied, but this can be changed by 
+adding a row in the Scaling section to correspond to force an extra scaling term between a pair of 
+atom types. 
+
+C. Set the dimensions of the simulation environment in <cfg.py> and the number of solvent molecules/
+lipid molecules. Check the filenames in the cfg.py correspond to filenames in <in.dopc> where 
+appropriate. If you wish to use a scaled nearest neighbour bonding scheme based on sigma values 
+of individual atoms then set the value in this file.
+
+N-phase systems are modelled with the following line in cfg file:
+
+	inputsinglemoleculefile = ["data.moleculeA", "data.moleculeB", "data.moleculeC", ...]
+
+where data.moleculeA, data.moleculeB, .. etc etc correspond to each of the molecule representations in 
+the system.
+
+corresponding molecules in each phase are specified with the following line:
+
+	molecules = [64, 64, 64, ...]
+
+where each integer value represents the number of each molecule to be represented in bilayer form in the 
+system. So for a two phase system comprising 128 molecules in total the line molecules = [64, 64] will
+specify a bilayer with 50:50 composition of both those phases. Please make sure that the number of lipids
+on each leaflet is a square number. 64, 81, 100, 121, 144...etc which would mean that in total there are
+relatively 128, 162, 200, 242, 288 lipids in total for example. No checks will be performed to ensure this
+arrangement.
+
+The arrangement of the phases is controllable with the <alternatephase> and <randomphase> commands which
+dictate how the molecules are arranged. <alternatephase> will attempt to place each phase alternately
+into the bilayer and <randomphase> will randomize this output to give a randomized initial condition.
+Switching these commands on and off is performed with the use of the "True" boolean.
+
+
+D. data.* files comprise the structural information of the lipid and water molecule. Ensure that 
+positions of the lipid are set according to the centre of the system volume but the lipid head is
+off-set by a positive amount such that the middle of the bilayer corresponds to positions at or close
+to 0.0.
+
+E. If you are good to run then simply run:
+	 python SmartBuilder.py
+
+This will rebuild the following files:
+	forcefield.dopc_scaled
+	data.sys
+
+You can then run the LAMMPS simulation in the usual way i.e.:
+
+	./lmp_serial < in.dopc
+
+
+LAMMPS notes:
+
+Adding pair styles and dipole bending
+-------------------------------------
+
+The example lipids given rely on point dipole routines and these can be downloaded from here and 
+included into your build of LAMMPS before compilation to ensure that these can be run. We are working
+on a more 'Vanilla' lipid example that you can use right out of the box with recourse to downloading 
+and installing.
+
+More information on the point dipole schemes employed is
+
+
+Notes on numbering (atoms and molecules)
+----------------------------------------
+
+All numbering should be contiguous where possible. We cannot test for every variation, so with your 
+numbering scheme for atoms and molecules please ensure where possible numbers run contiguously.
+
+We start molecule numbering from zero (0) and atoms from one (1) and this is partly historical and
+we suggest that you do the same to ensure you don't run into obvious problems.
+
+
+
+
+
+
+
+
+
+ 
