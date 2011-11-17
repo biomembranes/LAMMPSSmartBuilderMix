@@ -22,7 +22,7 @@ zoffset = -1.5    # Controls interdigitation of lipids (+/- digitates/separates)
 ### For best initial packing use numbers of the form: 2*N*N
 ### So 128 would be 2*8*8
 
-molecules = [64, 61, 1, 1, 1]
+molecules = [64, 66, 2, 2, 2]
 totalmol = reduce(lambda a,b: a+b, molecules)
 alternatephase = True	
 randomphase = False
@@ -57,5 +57,5 @@ if totalmol > 0:
 ROWDATA  = 7 ## This is the number of lumps of data we take from LAMMPS data file
 ROWBOND  = 4 ## Bond data from the LAMMPS data file
 ROWANGLE = 5 ## Angle data from the LAMMPS data file
-
+ROWDIHEDRAL = ROWIMPROPER = 6 ## Dihedral data from the LAMMPS data file
 

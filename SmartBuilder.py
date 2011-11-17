@@ -22,6 +22,26 @@ def checkpath(filename):
     		raise
 	
 
+def getatommasses():
+	massdict = {}
+	f = checkpath(cfg.inputforcefield)	
+	foundmasses = reading = False
+	for line in f:
+		
+		if ("mass" in line) and not foundmasses:
+			foundmasses = True
+		if foundmasses:
+			if (re.search('\d+', line)) and not "#" in line.split()[0]: 	### End reading on blank line
+				reading = True
+				masstype = int(line.split()[1])
+				massdict[masstype] = float(line.split()[2])
+			if line.strip() == '':						### Check for blank line and end reading
+				if reading:
+					foundmasses = False
+					reading = False	
+	f.close()
+	return massdict
+
 def findoutermostmol(atomoffset, systemmoldictbyatom):
 	## Get the outermost position + sigma (generous)
 	maxz = sigma = 0.0		
@@ -36,7 +56,7 @@ def findoutermostmol(atomoffset, systemmoldictbyatom):
  		
 	
 def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyatom):
-	allsolarray = [[0 for col in range(cfg.ROWDATA) ] for row in range(noofwaters+2)]	
+	allsoldict = {}
 	area = float(cfg.xL)*float(cfg.yL)
 	waterdim = math.pow(cfg.optimvolume, 1.0/3.0)
 	squarewater = int (float(cfg.xL)/float(waterdim))
@@ -45,7 +65,6 @@ def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyat
 		zstart = abs(findoutermostmol(atomoffset, systemmoldictbyatom))
 	else:
 		zstart = 0.0
-		
 	atom = atomoffset+1
 	xint = yint = maxz_new = 0
 	## Create atom positions first
@@ -55,17 +74,17 @@ def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyat
 		zint = int((atom-atomoffset)/squarewater**2)*(1-2*(atom % 2))
 		xnew = xstart + waterdim*xint
 		ynew = ystart + waterdim*yint
-		znew = zstart*(1-2*(atom % 2)) + waterdim*zint
-		for row in range(0, cfg.ROWDATA):
-			allsolarray[atom-atomoffset][row] = solarray[1][row]
-		allsolarray[atom-atomoffset][1] = [xnew, ynew, znew]
-		allsolarray[atom-atomoffset][2] = int(cfg.molrep)
+		znew = zstart*(1-2*(atom % 2)) + waterdim*zint	
+		tempsol = deepcopy(solarray)
+		tempsol[1][1] = [xnew, ynew, znew]
+		tempsol[1][2] = int(cfg.molrep)
+		allsoldict[atom-atomoffset] = tempsol[1]
 		if znew > maxz_new:
 			maxz_new = znew
 		atom+=1
 	if maxz_new > float(cfg.zL)/2.0:
 		print "Please revise your zL, the water pushes zL to: %f\n" % (maxz_new*2)
-	return allsolarray, atom-1
+	return allsoldict, atom-1
 
 
 ### Building of the forcefield from META file
@@ -84,6 +103,10 @@ def createnewFF(forcefieldLJ, forcefieldbonds):
 			fftext += forcefieldbonds
 		if not ("pair_coeff" in line) and not ("bond_coeff" in line):
 			fftext += line
+
+	if not foundpairLJ:
+		### dump anyhow to make sure
+		fftext += forcefieldLJ
 	
 	w.write(fftext)
 	f.close()
@@ -147,7 +170,7 @@ def getmaxbendtypes(systemdict, species):
 
 		
 def readLJsingles(atomtypes):
-	LJarray = [[0 for col in range(3) ] for row in range(atomtypes)]
+	LJdict = {}
 	f = checkpath(cfg.inputmetafile)
 	collect = False
 	type_no = 0
@@ -156,17 +179,15 @@ def readLJsingles(atomtypes):
 			collect = True
 		if collect and (re.search('\d+', line)) and (int(line.split()[0]) <= int(atomtypes)):
 			atom_data = line.split()
-			LJarray[type_no][0] = int(atom_data[0])                                                  # type
-			LJarray[type_no][1] = float(atom_data[1])                                                # epsilon
-			LJarray[type_no][2] = float(atom_data[2])                                                # sigma
-			type_no += 1
+			type_no = int(atom_data[0])
+			LJdict[type_no] = [int(atom_data[0]), float(atom_data[1]), float(atom_data[2])]
 			if int(line.split()[0]) == int(atomtypes):
 				collect = False
 	f.close()
-	return LJarray
+	return LJdict
 
 def readLJpairs(atomtypes):
-	LJscaling = [[0 for col in range(3) ] for row in range(atomtypes*atomtypes)]
+	LJscaledict = {}
 	f = checkpath(cfg.inputmetafile)
 	pair_no = 0
 	collect = False
@@ -174,29 +195,37 @@ def readLJpairs(atomtypes):
 		if "Scaling" in line:
 			collect = True
 		if collect and (re.search('\d+', line)) and (int(line.split()[0]) <= int(atomtypes)):
-			
 			atom_data = line.split()
-			LJscaling[pair_no][0] = int(atom_data[0])                                                # i
-			LJscaling[pair_no][1] = int(atom_data[1])                                                # j
-			LJscaling[pair_no][2] = float(atom_data[2])                                              # scale
+			LJscaledict[pair_no] = [int(atom_data[0]), int(atom_data[1]), float(atom_data[2])]                               
 			pair_no += 1
 			if line == "":
 				collect = False
 	f.close()
-	return LJscaling, pair_no
+	#print LJscaledict
+	#print "======================================="
+	return LJscaledict, pair_no
+
+def getscalefactor(i, j, LJpairs, no_pairs):
+	scale = 1.0
+	for pair in range(0, no_pairs):
+		if int(LJpairs[pair][0]) == int(i) and int(LJpairs[pair][1]) == int(j):
+			scale = LJpairs[pair][2]
+	return scale	
+	
 
 def buildLJpairs(atomtypes, LJarray, LJpairs, no_pairs):
 	pairdata = ""
-	for i in range(0, atomtypes):
-		for j in range(i,atomtypes):
-			scale = 1.0	
-			typei = LJarray[i][0]; typej = LJarray[j][0]
-			for pair in range(no_pairs):
-				if (LJpairs[pair][0] == typei) and (LJpairs[pair][1] == typej):
-					scale = LJpairs[pair][2]
-			epsilon = scale * math.sqrt(float(LJarray[i][1])*float(LJarray[j][1]))
-			sigma = (float(LJarray[i][2]) + float(LJarray[j][2]))/2.0
-			pairdata += 'pair_coeff %7s %7s   %7f   %7f\n' % (typei, typej, epsilon, sigma)
+	paircount = 0
+	#print no_pairs
+	for i in range(0, atomtypes+1):
+		for j in range(i,atomtypes+1):
+			scale = getscalefactor(i, j, LJpairs, no_pairs)
+			if i in LJarray and j in LJarray:
+				epsilon = scale * math.sqrt(float(LJarray[i][1])*float(LJarray[j][1]))
+				sigma = (float(LJarray[i][2]) + float(LJarray[j][2]))/2.0
+				pairdata += 'pair_coeff %7s %7s   %7f   %7f\n' % (i, j, epsilon, sigma)
+			
+	#print pairdata
 	return pairdata	
 
 	
@@ -231,10 +260,10 @@ def readcomputebondpairs(atomspermol, bondspermol, atomtypes, bondtypes, bondarr
 		if atomi != None:
 			LJmetaarray = readLJsingles(atomtypes)
 			typei = molarray[atomi][0]; typej = molarray[atomj][0]
-			pos_i = geti_LJarray(atomtypes, LJmetaarray, typei)
-			pos_j = geti_LJarray(atomtypes, LJmetaarray, typej)
-			sigmai = float(LJmetaarray[pos_i][2])
-			sigmaj = float(LJmetaarray[pos_j][2])
+			#pos_i = geti_LJarray(atomtypes, LJmetaarray, typei)
+			#pos_j = geti_LJarray(atomtypes, LJmetaarray, typej)
+			sigmai = float(LJmetaarray[typei][2])
+			sigmaj = float(LJmetaarray[typej][2])
  			scaledsigma = (sigmai+sigmaj)*(scale/2.0)
 			bondscaledsigmaarray[bondtype] = scaledsigma
 	return bondscaledsigmaarray
@@ -264,16 +293,17 @@ def simpleinvertmolecule(atomspermol, singlemolarray):
 		newmolarray[atom][4][2] *= -1	# z positions (dipole)
 	return newmolarray
 
-def invertmolecule(atomspermol, singlemolarray):
+def invertmolecule(atomspermol, singlemolarray, systemmoldict, intspecies):
 	## To get interdigitation we swap the rotate about the xy plane
 	## we also rotate lipid to allow for closer packing of asymmetric
 	## tails.
 	## We typically use this for Ceramide moeties since we have two heads.
 	## See <simpleinvertmolecule> for simple version that flips and does not
 	## worry about chain flipping etc.
-
-	newmolarray = copymol(atomspermol, molarray)
+	#print systemmoldict
+	newmolarray = copymol(atomspermol, systemmoldict[intspecies])
 	heads = findlipidheadbeads(atomspermol, newmolarray)
+	#print heads
 	heada = heads[0]; headb = heads[1]
 	lena = headb - heada; lenb = atomspermol - lena
 	chainaxyz = singlemolarray[heada][1]; chainbxyz = singlemolarray[headb][1]
@@ -294,6 +324,7 @@ def findlipidheadbeads(atomspermol, singlemolarray):
 	## This attempts to locate the 'lipid' two head beads
 	## The head beads can then used to help swap the chains over 
 	## and manipulate the lipids.
+	# print atomspermol
 	for atom in range(2, atomspermol):
 		if ((singlemolarray[atom+1][1][2] - singlemolarray[atom][1][2]) > 0.0):
 			currentatom = atom 
@@ -366,7 +397,7 @@ def createboxdimensions(xL, yL, zL):
 	return str(boxdata)
 
 def readsinglemolecule(atomspermol, filename):
-	molarray = [[0 for col in range(int(cfg.ROWDATA)) ] for row in range(1, atomspermol+2)]
+	moldict = {}
 	f = checkpath(filename)
 	collect = False
 	for line in f:
@@ -375,17 +406,11 @@ def readsinglemolecule(atomspermol, filename):
 		if collect and (re.search('\d+', line)) and (int(line.split()[0]) <= int(atomspermol)):
 			atom_data = line.split()
 			atom_no = int(atom_data[0])
-			molarray[atom_no][0] = int(atom_data[1])                                                  # type
-			molarray[atom_no][1] = [float(atom_data[2]), float(atom_data[3]), float(atom_data[4])]    # xyz
-			molarray[atom_no][2] = int(atom_data[5])                                                  # mol no
-			molarray[atom_no][3] = float(atom_data[6])                                                # charge
-			molarray[atom_no][4] = [float(atom_data[7]), float(atom_data[8]), float(atom_data[9])]    # dipole
-			molarray[atom_no][5] = float(atom_data[10])                                               # sigma
-			molarray[atom_no][6] = float(atom_data[11])                                               # density
+			moldict[atom_no] = [int(atom_data[1]), [float(atom_data[2]), float(atom_data[3]), float(atom_data[4])], int(atom_data[5]), float(atom_data[6]), [float(atom_data[7]), float(atom_data[8]), float(atom_data[9])], float(atom_data[10]), float(atom_data[11])]
 			if int(line.split()[0]) == int(atomspermol):
 				collect = False
 	f.close()
-	return molarray
+	return moldict
 
 def readsinglemoleculebonds(bondspermol, filename):
 	bondarray = [[0 for col in range(cfg.ROWBOND) ] for row in range(1, bondspermol+2)]
@@ -421,25 +446,64 @@ def readsinglemoleculeangles(anglespermol, filename):
 	f.close()
 	return anglesarray
 
+def readsinglemoleculedihedrals(dihedralspermol, filename):
+	dihedarray = [[0 for col in range(cfg.ROWDIHEDRAL) ] for row in range(1, dihedralspermol+2)]
+	f = checkpath(filename)
+	collect = False
+	for line in f:
+		if "Dihedrals" in line:
+			collect = True
+		if collect and (re.search('\d+', line)) and (int(line.split()[0]) <= int(dihedralspermol)):
+			dihed_data = line.split()
+			dihed_no = int(dihed_data[0])
+			for row in range(0,cfg.ROWDIHEDRAL):
+				dihedarray[dihed_no][row] = dihed_data[row]
+			if int(line.split()[0]) == int(dihedralspermol):
+				collect = False
+	f.close()
+	return dihedarray
+
+def readsinglemoleculeimpropers(improperspermol, filename):
+	impropsarray = [[0 for col in range(cfg.ROWIMPROPERS) ] for row in range(1, improperspermol+2)]
+	f = checkpath(filename)
+	collect = False
+	for line in f:
+		if "Impropers" in line:
+			collect = True
+		if collect and (re.search('\d+', line)) and (int(line.split()[0]) <= int(improperspermol)):
+			improp_data = line.split()
+			improp_no = int(improp_data[0])
+			for row in range(0,cfg.ROWIMPROPERS):
+				improparray[dihed_no][row] = improp_data[row]
+			if int(line.split()[0]) == int(improperspermol):
+				collect = False
+	f.close()
+	return impropsarray
+
 def copymol(atomspermol, molarray):
 	newmolarray = deepcopy(molarray)
 	return newmolarray
 
 def createspeciesseq(molecules, nospecies):
 	currentcount = deepcopy(molecules)
-	molcount = 1; speciesseq = []
-	while (molcount <= (cfg.totalmol)):
+	monolayer = []; molcount = 1; speciesseq = []
+	for item in currentcount:
+		monolayer.append(item/2)
+	while (molcount <= int(cfg.totalmol)/2):
 		for spec in range(0, (nospecies-1)):
-			if (currentcount[spec] > 0):
-				molcount +=1
-				currentcount[spec] -= 1
+			if (monolayer[spec] > 0):
+				molcount += 1
+				monolayer[spec] -= 1
 				speciesseq.append(spec)
+	
 	if (cfg.randomphase):
 		random.shuffle(speciesseq)
-	return speciesseq
+	#print speciesseq	
+	#print speciesseq+speciesseq
+	return speciesseq+speciesseq
 		
 		
-def createbilayerproperties(systemdict, systemmoldict, speciesseq):
+def createbilayerproperties(systemdict, systemmoldict, speciesseq, LJdictbytype, atommassesall):
 	newsystemmoldictbyatom = {}
 	xstart = -float(cfg.xL)/2.0; ystart = -float(cfg.yL)/2.0
 	zoffset = -float(cfg.zoffset)
@@ -453,19 +517,32 @@ def createbilayerproperties(systemdict, systemmoldict, speciesseq):
 					atomspermol = systemdict[speciesint][0]
 					monolayeroffset = zoffset*(1-2*(monolayer % 2))
 					cpymolarray = deepcopy(systemmoldict[speciesint])
+					#print systemmoldict
+					#print "=========="
+					#print cpymolarray
+					#print "=========="
+
 					if (monolayer % 2 == 1):
-						cpymolarray = simpleinvertmolecule(atomspermol, cpymolarray) 
+						cpymolarray = invertmolecule(atomspermol, cpymolarray, systemmoldict, speciesint) 
 						# Can replace with ch.inversion <invertmolecule>	
-					for atom in range(1, atomspermol+1):	
+					for atom in range(1, atomspermol+1):
+						#print atom, atomtype
+						atomtype = int(cpymolarray[atom][0])
+					
+						newmass = atommassesall[atomtype]
+						newsigma = LJdictbytype[atomtype][2]
+						newdensity = newmass/(4.0/3.0 * math.pi * (newsigma/2.0)**3)
 						xnew = float(cpymolarray[atom][1][0]) + float(xstart) + float(cfg.delx)*xlip
 						ynew = float(cpymolarray[atom][1][1]) + float(ystart) + float(cfg.dely)*ylip
 						znew = float(cpymolarray[atom][1][2]) + monolayeroffset
 						cpymolarray[atom][1] = [xnew, ynew, znew]
 						cpymolarray[atom][2] = molcurrent
+						cpymolarray[atom][5] = newsigma
+						cpymolarray[atom][6] = newdensity 
 						newsystemmoldictbyatom[atomcurrent] = cpymolarray[atom]
 						atomcurrent+=1
 					molcurrent+=1
-	return newsystemmoldictbyatom, atomcurrent-1			
+	return newsystemmoldictbyatom, atomcurrent-1		
 
 def createbilayerpropertiesbond(systemdict, systembonddict, speciesseq, molecules):
 	newsystembonddictbybond = {}
@@ -502,6 +579,41 @@ def createbilayerpropertiesbend(systemdict, systembenddict, speciesseq, molecule
 		atomoffset+=atomspermol
 	return newsystembenddictbybend, bendcurrent-1
 
+def createbilayerpropertiesdihedrals(systemdict, systemdiheddict, speciesseq, molecules):
+	newsystemdiheddictbydihed = {}
+	molcurrent = 1; dihedcurrent = 1
+	atomoffset = 0
+	## Create atom positions first
+	for molecule in range(1, int(molecules)+1):
+		speciesint = speciesseq[molcurrent-1]
+		atomspermol = systemdict[speciesint][0]
+		dihedspermol = systemdict[speciesint][3]
+		cpydihedarray = deepcopy(systemdiheddict[speciesint])
+		for dihed in range(1, dihedspermol+1):
+			newsystemdiheddictbydihed[dihedcurrent] = [int(cpydihedarray[dihed][1]), int(cpydihedarray[dihed][2]) + atomoffset, int(cpydihedarray[dihed][3]) + atomoffset, int(cpydihedarray[dihed][4]) + atomoffset, int(cpydihedarray[dihed][5]) + atomoffset]
+			dihedcurrent+=1
+		molcurrent+=1
+		atomoffset+=atomspermol
+	return newsystemdiheddictbydihed, dihedcurrent-1
+
+def createbilayerpropertiesimpropers(systemdict, systemimpropdict, speciesseq, molecules):
+	newsystemimpropdictbyimprop = {}
+	molcurrent = 1; impropcurrent = 1
+	atomoffset = 0
+	## Create atom positions first
+	for molecule in range(1, int(molecules)+1):
+		speciesint = speciesseq[molcurrent-1]
+		atomspermol = systemdict[speciesint][0]
+		impropspermol = systemdict[speciesint][4]
+		cpydihedarray = deepcopy(systemimpropdict[speciesint])
+		for improp in range(1, impropspermol+1):
+			newsystemimpropdictbyimprop[impropcurrent] = [int(cpydihedarray[improp][1]), int(cpydihedarray[improp][2]) + atomoffset, int(cpydihedarray[improp][3]) + atomoffset, int(cpydihedarray[improp][4]) + atomoffset, int(cpydihedarray[improp][5]) + atomoffset]
+			impropcurrent+=1
+		molcurrent+=1
+		atomoffset+=atomspermol
+	return newsystemimpropdictbyimprop, impropcurrent-1
+
+
 def createatomdataLAMMPS(totalatoms, molarray, offset):
 	atomdata = ""
 	for atom in range(1, totalatoms+1):
@@ -521,6 +633,23 @@ def createbenddataLAMMPS(totalbends, molarray, offset):
 		benddata += '%7d %7d %7d %7d %7d\n' % (int(bend)+int(offset), int(molarray[bend][0]), int(molarray[bend][1]), int(molarray[bend][2]), int(molarray[bend][3]))	
 	return benddata
 
+def createdihedralsdataLAMMPS(totalbends, molarray, offset):
+	benddata = ""	
+	if totalbends > 0:
+		benddata = "Dihedrals\n\n"
+	for bend in range(1, totalbends+1):
+		benddata += '%7d %7d %7d %7d %7d %7d\n' % (int(bend)+int(offset), int(molarray[bend][0]), int(molarray[bend][1]), int(molarray[bend][2]), int(molarray[bend][3]), int(molarray[bend][4]))	
+	return benddata
+
+def createimpropersdataLAMMPS(totalbends, molarray, offset):
+	benddata = ""
+	if totalbends > 0:
+		benddata = "Impropers\n\n"
+	for bend in range(1, totalbends+1):
+		benddata += '%7d %7d %7d %7d %7d %7d\n' % (int(bend)+int(offset), int(molarray[bend][0]), int(molarray[bend][1]), int(molarray[bend][2]), int(molarray[bend][3]), int(molarray[bend][4]))	
+	return benddata
+
+
 def createnewfileLAMMPS(buildtxt):
 	f = open(cfg.outputsystemfile, "w")
 	f.write(buildtxt)
@@ -531,33 +660,40 @@ def membranestats():
 	return areaperlipid
 
 def main():
-	intspecies = 0; systemdict = {}; systemmoldict = {}; systembonddict = {}; systembenddict = {}
+	intspecies = 0; systemdict = {}; systemmoldict = {}; systembonddict = {}; systembenddict = {}; systemdiheddict = {}; systemimprop = {};
+	atomtypesall = getatomtypes()
+	atommassesall = getatommasses()
+	LJarray = readLJsingles(atomtypesall)
 	for strspecies in (cfg.inputsinglemoleculefile):
 		atoms, bonds, angles, dihedrals, impropers, atomtypes, bondtypes, angletypes, dihedraltypes, impropertypes = readfullheader(strspecies)
 		systemdict[intspecies] = readfullheader(strspecies)
 		systemmoldict[intspecies] = readsinglemolecule(atoms, strspecies)
 		systembonddict[intspecies] = readsinglemoleculebonds(bonds, strspecies)
 		systembenddict[intspecies] = readsinglemoleculeangles(angles, strspecies)
+		systemdiheddict[intspecies] = readsinglemoleculedihedrals(dihedrals, strspecies)
+		systemimprop[intspecies] = readsinglemoleculedihedrals(impropers, strspecies)
 		intspecies+=1
 	speciesseq = createspeciesseq(cfg.molecules, intspecies+1)
-	newsystemmoldictbyatom, totalatomssolute = createbilayerproperties(systemdict, systemmoldict, speciesseq)
+	newsystemmoldictbyatom, totalatomssolute = createbilayerproperties(systemdict, systemmoldict, speciesseq, LJarray, atommassesall)
 	newsystembonddictbybond, totalbondssolute = createbilayerpropertiesbond(systemdict, systembonddict, speciesseq, cfg.totalmol)
-	
-	
         newsystembenddictbybend, totalbendssolute = createbilayerpropertiesbend(systemdict, systembenddict, speciesseq, cfg.totalmol)
+        newsystemdiheddictbydihed, totaldihedssolute = createbilayerpropertiesdihedrals(systemdict, systemdiheddict, speciesseq, cfg.totalmol)
+        newsystemimpropdictbyimprop, totalimpropssolute = createbilayerpropertiesimpropers(systemdict, systemimprop, speciesseq, cfg.totalmol)
 	atomoffset = totalatomssolute
 	formatatommol = createatomdataLAMMPS(totalatomssolute, newsystemmoldictbyatom, 0)
 	formatbondmol = createbonddataLAMMPS(totalbondssolute, newsystembonddictbybond, 0)
 	formatbendmol = createbenddataLAMMPS(totalbendssolute, newsystembenddictbybend, 0)
+	formatdihedmol = createdihedralsdataLAMMPS(totaldihedssolute, newsystemdiheddictbydihed, 0)
+	formatimpropmol = createimpropersdataLAMMPS(totalimpropssolute, newsystemimpropdictbyimprop, 0)
 	if int(cfg.noofwaters) > 0:
 		solarray = readsinglemolecule(1, cfg.inputsinglesolventfile)
 		solfield, atomoffset = createwaters(int(cfg.noofwaters), systemdict, totalatomssolute, solarray, newsystemmoldictbyatom)
 		formatsolmols = createatomdataLAMMPS(cfg.noofwaters, solfield, totalatomssolute)
-	atomtypesall = getatomtypes()
+	
 	bondtypessolute = getmaxbondtypes(systemdict, intspecies)
 	bendtypessolute = getmaxbendtypes(systemdict, intspecies)
 
-	formatheader = createfullheader(cfg.totalmol, atomoffset, totalbondssolute, totalbendssolute, dihedrals, impropers, atomtypesall, bondtypessolute, bendtypessolute, dihedraltypes, impropertypes)
+	formatheader = createfullheader(cfg.totalmol, atomoffset, totalbondssolute, totalbendssolute, totaldihedssolute, totalimpropssolute, atomtypesall, bondtypessolute, bendtypessolute, dihedraltypes, impropertypes)
 	formatboxhead = createboxdimensions(cfg.xL, cfg.yL, cfg.zL)
 	systemfilecontent = "LAMMPS Bilayer comprising " + str(cfg.totalmol) + " created from a single molecule\n"
 	systemfilecontent += formatheader + "\n"
@@ -569,6 +705,8 @@ def main():
 	systemfilecontent += "\n\n\n\n"
 	systemfilecontent += formatbondmol + "\n\n\n\n"
 	systemfilecontent += formatbendmol + "\n\n\n\n"
+	systemfilecontent += formatdihedmol + "\n\n\n\n"
+	systemfilecontent += formatimpropmol + "\n\n\n\n"
 	createnewfileLAMMPS(systemfilecontent)
 	if int(cfg.totalmol) > 0:
 		print 'Creating %d molecules' % (cfg.totalmol)
@@ -582,7 +720,8 @@ def main():
 	### Additionaly we scale LJ pairs and scale bonded interactions with scaling factor 
 	### pulled in from 'cfg' file.
 
-	LJarray = readLJsingles(atomtypesall)
+	
+	
 	LJpairs, no_pairs = readLJpairs(atomtypesall)
 	forcefieldLJ = buildLJpairs(atomtypesall, LJarray, LJpairs, no_pairs)
 	bondscaledsigmaarray = readcomputebondpairs(totalatomssolute, totalbondssolute, atomtypesall, bondtypessolute, newsystembonddictbybond, newsystemmoldictbyatom, float(cfg.bondscaling))
