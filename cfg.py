@@ -4,34 +4,40 @@ import math
 
 inputmetafile = "meta.sys"
 
-inputsinglemoleculefile = ["data.dopcsingle", "data.dopcsingle_cpy", "data.dopcsingle_cpy", "data.dopcsingle_cpy", "data.dopcsingle_cpy"]
+inputsinglemoleculefile = ["data.dopcsingle"]
 inputsinglesolventfile = "data.watersingle"
 outputsystemfile = "data.sys"
 
 inputforcefield = "forcefield.dopc" 
-outputforcefield = "forcefield.dopc_scaled"
+outputforcefield = "forcefield.sys"
 
 ### Box dimensions
 ### LAMMPS goes from -x to +x where x = xL/2
 
-xL = yL = 68.0    # Set for a square system
-zL = 63.0         #
-zoffset = -1.5    # Controls interdigitation of lipids (+/- digitates/separates)
+xL = yL = 60.0    # Set for a square system
+zL = 80.0         #
+zoffset = [-2.5]    # Controls interdigitation of lipids (+/- digitates/separates)
 
 ### Molecules
 ### For best initial packing use numbers of the form: 2*N*N
 ### So 128 would be 2*8*8
 
-molecules = [64, 66, 2, 2, 2]
-totalmol = reduce(lambda a,b: a+b, molecules)
+molecules = [128]
+
 alternatephase = True	
 randomphase = False
+invertmoleculetype = ["s"]
 
+## "s" means simple invert where the chains are not swapped
+## "c" means invert and swap the chains to cope with interdigitation
+
+
+totalmol = reduce(lambda a,b: a+b, molecules)
 
 ### Solvent
 
-noofwaters = 1000   	  # Set to zero for water free   
-optimvolume = 8.0	  # Initial idealized water volume
+noofwaters = 0            # Set to zero for water free   
+optimvolume = 30.0	  # Initial idealized water volume
 empericalvolume = 30.0    # Theoretical water volume
 molrep = 0                # What we name the molecules
 
@@ -40,7 +46,7 @@ molrep = 0                # What we name the molecules
 ### of those constituent atoms bondscaling*(sigma_i + sigma_j)*(0.5)
 
 bondscaling = 0.90
-
+excludescaling = [] ## keeps the bond length as in the input file
 
 ### End of user definable constants ###
 
@@ -58,4 +64,6 @@ ROWDATA  = 7 ## This is the number of lumps of data we take from LAMMPS data fil
 ROWBOND  = 4 ## Bond data from the LAMMPS data file
 ROWANGLE = 5 ## Angle data from the LAMMPS data file
 ROWDIHEDRAL = ROWIMPROPER = 6 ## Dihedral data from the LAMMPS data file
+
+
 

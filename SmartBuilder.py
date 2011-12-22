@@ -253,19 +253,18 @@ def getrealsigma_meta(atomtypes, atom_type):
 	sigma = float(LJmetaarray[posi][2])
 	return sigma
 	
-def readcomputebondpairs(atomspermol, bondspermol, atomtypes, bondtypes, bondarray, molarray, scale):
+def readcomputebondpairs(atomspermol, bondspermol, atomtypes, bondtypes, bondarray, molarray, scale, bondexclusions):
 	bondscaledsigmaarray = [None]*(int(bondtypes)+1)
 	for bondtype in range(1,bondtypes+1):
-		atomi, atomj = getatomids_bondarray(bondspermol, bondarray, bondtype)
-		if atomi != None:
-			LJmetaarray = readLJsingles(atomtypes)
-			typei = molarray[atomi][0]; typej = molarray[atomj][0]
-			#pos_i = geti_LJarray(atomtypes, LJmetaarray, typei)
-			#pos_j = geti_LJarray(atomtypes, LJmetaarray, typej)
-			sigmai = float(LJmetaarray[typei][2])
-			sigmaj = float(LJmetaarray[typej][2])
- 			scaledsigma = (sigmai+sigmaj)*(scale/2.0)
-			bondscaledsigmaarray[bondtype] = scaledsigma
+		if (bondtype not in bondexclusions):
+			atomi, atomj = getatomids_bondarray(bondspermol, bondarray, bondtype)
+			if atomi != None:
+				LJmetaarray = readLJsingles(atomtypes)
+				typei = molarray[atomi][0]; typej = molarray[atomj][0]
+				sigmai = float(LJmetaarray[typei][2])
+				sigmaj = float(LJmetaarray[typej][2])
+ 				scaledsigma = (sigmai+sigmaj)*(scale/2.0)
+				bondscaledsigmaarray[bondtype] = scaledsigma
 	return bondscaledsigmaarray
 
 def createLAMMPSforcefieldscaledbond(bondscaledsigmaarray):
@@ -506,7 +505,7 @@ def createspeciesseq(molecules, nospecies):
 def createbilayerproperties(systemdict, systemmoldict, speciesseq, LJdictbytype, atommassesall):
 	newsystemmoldictbyatom = {}
 	xstart = -float(cfg.xL)/2.0; ystart = -float(cfg.yL)/2.0
-	zoffset = -float(cfg.zoffset)
+	
 	molcurrent = 1; atomcurrent = 1
 	## Create atom positions first
 	for monolayer in range (2):
@@ -514,17 +513,15 @@ def createbilayerproperties(systemdict, systemmoldict, speciesseq, LJdictbytype,
 			for ylip in range(0, int(cfg.squarelipid)):
 				if (molcurrent <= cfg.totalmol):
 					speciesint = speciesseq[molcurrent-1]
+					zoffset = -float(cfg.zoffset[speciesint])
 					atomspermol = systemdict[speciesint][0]
 					monolayeroffset = zoffset*(1-2*(monolayer % 2))
 					cpymolarray = deepcopy(systemmoldict[speciesint])
-					#print systemmoldict
-					#print "=========="
-					#print cpymolarray
-					#print "=========="
-
 					if (monolayer % 2 == 1):
-						cpymolarray = invertmolecule(atomspermol, cpymolarray, systemmoldict, speciesint) 
-						# Can replace with ch.inversion <invertmolecule>	
+						if cfg.invertmoleculetype[speciesint] == "c":
+							cpymolarray = invertmolecule(atomspermol, cpymolarray, systemmoldict, speciesint)
+						else:
+							cpymolarray = simpleinvertmolecule(atomspermol, cpymolarray)
 					for atom in range(1, atomspermol+1):
 						#print atom, atomtype
 						atomtype = int(cpymolarray[atom][0])
@@ -724,7 +721,7 @@ def main():
 	
 	LJpairs, no_pairs = readLJpairs(atomtypesall)
 	forcefieldLJ = buildLJpairs(atomtypesall, LJarray, LJpairs, no_pairs)
-	bondscaledsigmaarray = readcomputebondpairs(totalatomssolute, totalbondssolute, atomtypesall, bondtypessolute, newsystembonddictbybond, newsystemmoldictbyatom, float(cfg.bondscaling))
+	bondscaledsigmaarray = readcomputebondpairs(totalatomssolute, totalbondssolute, atomtypesall, bondtypessolute, newsystembonddictbybond, newsystemmoldictbyatom, float(cfg.bondscaling), (cfg.excludescaling))
 	forcefieldbonds = createLAMMPSforcefieldscaledbond(bondscaledsigmaarray)
 	createnewFF(forcefieldLJ, forcefieldbonds)
 
