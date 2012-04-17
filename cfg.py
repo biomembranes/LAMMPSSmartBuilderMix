@@ -14,19 +14,26 @@ outputforcefield = "forcefield.sys"
 ### Box dimensions
 ### LAMMPS goes from -x to +x where x = xL/2
 
-xL = yL = 60.0    # Set for a square system
-zL = 80.0         #
+xL = yL = 160.0    # Set for a square system
+zL = 180.0         #
 zoffset = [-2.5]    # Controls interdigitation of lipids (+/- digitates/separates)
 
 ### Molecules
 ### For best initial packing use numbers of the form: 2*N*N
 ### So 128 would be 2*8*8
 
-molecules = [128]
+molecules = [500]
 
 alternatephase = True	
 randomphase = False
 invertmoleculetype = ["s"]
+
+
+## For non-bilayer geometries
+
+MixPhaseRandom = True ## We divide the whole volume up and use it all while randomizing the phase
+
+
 
 ## "s" means simple invert where the chains are not swapped
 ## "c" means invert and swap the chains to cope with interdigitation
@@ -36,7 +43,7 @@ totalmol = reduce(lambda a,b: a+b, molecules)
 
 ### Solvent
 
-noofwaters = 0            # Set to zero for water free   
+noofwaters = 500            # Set to zero for water free   
 optimvolume = 30.0	  # Initial idealized water volume
 empericalvolume = 30.0    # Theoretical water volume
 molrep = 0                # What we name the molecules
