@@ -12,8 +12,8 @@ outputforcefield = "forcefield.sys"
 ### Box dimensions
 ### LAMMPS dimensions from -x to +x where x = xL/2
 
-xL = yL = 120.0    # Set for a square system
-zL = 96.0         #
+xL = yL = 70.0    # Set for a square system
+zL = 90.0         #
 zoffset = [-2.5]  # Controls interdigitation of lipids (+/- digitates/separates)
 
 ### Solute Molecules
@@ -28,7 +28,7 @@ invertmoleculetype = ["s"]
 
 ### For non-bilayer geometries
 
-MixPhaseRandom = True
+MixPhaseRandom = False
 approxvolmol = [2000] ## User specified input to help give some idea of the initial
 		      ## system start-up time (limited to single component for reporting).
 
@@ -47,7 +47,7 @@ totalmol = reduce(lambda a,b: a+b, molecules)
 ### -------
 
 noofwaters = 2048         # Set to zero for water free   
-optimvolume = 20.0	  # Initial idealized water volume - this is what you want the system to try and
+optimvolume = 30.0	  # Initial idealized water volume - this is what you want the system to try and
 			  # use to pack the water molecules. Tune this to help with system building.
 empericalvolume = 30.0    # Theoretical water volume (vol waters would like to live at)
 molrep = 0                # What we name the molecules
