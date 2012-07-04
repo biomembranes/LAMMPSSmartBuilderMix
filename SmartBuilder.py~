@@ -74,7 +74,6 @@ def findoutermostmol(atomoffset, systemmoldictbyatom):
 	
 def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyatom):
 	allsoldict = {}
-	dummymol = {}
 	area = float(cfg.xL)*float(cfg.yL)
 	waterdim = math.pow(cfg.optimvolume, 1.0/3.0)
 	squarewater = int (float(cfg.xL)/float(waterdim))
@@ -84,7 +83,8 @@ def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyat
 	else:
 		zstart = 0.0
 	atom = atomoffset+1
-	xint = yint = maxz_new = 0	
+	xint = yint = maxz_new = 0
+	## Create atom positions first
 	while atom < noofwaters+atomoffset+1:
 		xint = (xint + 1) % int(squarewater) 
 		yint = ((int((atom-atomoffset)/squarewater)) % int(squarewater))
@@ -92,14 +92,11 @@ def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyat
 		xnew = xstart + waterdim*xint
 		ynew = ystart + waterdim*yint
 		znew = zstart*(1-2*(atom % 2)) + waterdim*zint
-		### text = '\rAdding water (atom): %d' % (atom - int(atomoffset))	
-		### This below is a hack - cheap and dirty
-		text = '\rAdding water (MOLECULES): %d ' % (atom - int(atomoffset))	
+		text = '\rAdding water (atom): %d' % atom				
 		sys.stdout.write(text)
 		if (cfg.MixPhaseRandom):
-			clashsolute = True
-			clashsolvent = True
-			while clashsolute or clashsolvent:
+			clash = True
+			while clash:
 				randdispl = [float(cfg.xL)*random.random(), float(cfg.yL)*random.random(), float(cfg.zL)*random.random()]
 				xnew += randdispl[0]
 				ynew += randdispl[1]
@@ -108,10 +105,16 @@ def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyat
 				ynew = ynew % float(cfg.yL)
 				znew = znew % float(cfg.zL)
 				## build a dummy molecule for water for the purpuses of our clash algorithm.
-				dummymol.clear()
+				dummymol = {}
 				dummymol[1] = [0, [xnew, ynew, znew], 0, 0, 0, (waterdim+1.0)]
-				clashsolute = Clash(systemmoldictbyatom, dummymol, atomoffset, 1)
-				clashsolvent = Clash(allsoldict, dummymol, atom-atomoffset, 1)
+				#print atom, dummymol
+				clash = Clash(systemmoldictbyatom, dummymol, atom, 0)
+
+
+
+		
+
+
 		tempsol = deepcopy(solarray)
 		tempsol[1][1] = [xnew, ynew, znew]
 		tempsol[1][2] = int(cfg.molrep)
@@ -119,12 +122,8 @@ def createwaters(noofwaters, systemdict, atomoffset, solarray, systemmoldictbyat
 		if znew > maxz_new:
 			maxz_new = znew
 		atom+=1
-
-	if maxz_new > float(cfg.zL)/2.0 and not (cfg.MixPhaseRandom):
+	if maxz_new > float(cfg.zL)/2.0:
 		print "Please revise your zL, the water pushes zL to: %f\n" % (maxz_new*2)
-	print '\nInitial local volume per solvent mol. %f Angstroms cbd.' % (2*(float(cfg.zL)/2.0 - zstart)*float(cfg.xL)*float(cfg.yL)/noofwaters)
-	#print '\nInitial local volume per solvent mol. %f Angstroms cbd.' % ((xnew - xstart))
-
 	return allsoldict, atom-1
 
 
@@ -449,7 +448,6 @@ def readsinglemolecule(atomspermol, filename):
 			moldict[atom_no] = [int(atom_data[1]), [float(atom_data[2]), float(atom_data[3]), float(atom_data[4])], int(atom_data[5]), float(atom_data[6]), [float(atom_data[7]), float(atom_data[8]), float(atom_data[9])], float(atom_data[10]), float(atom_data[11])]
 			if int(line.split()[0]) == int(atomspermol):
 				collect = False
-			#print atom_data
 	f.close()
 	return moldict
 
@@ -462,18 +460,12 @@ def readsinglemoleculebonds(bondspermol, filename):
 			collect = True
 		if collect and (re.search('\d+', line)) and (int(line.split()[0]) <= int(bondspermol)):
 			bond_data = line.split()
-			#print bond_data, bondspermol
-			#raw_input("")
 			bond_no = int(bond_data[0])
 			for row in range(0,cfg.ROWBOND):
 				bondarray[bond_no][row] = bond_data[row]
 			if int(line.split()[0]) == int(bondspermol):
 				collect = False
-	
 	f.close()
-	#print "Bond Array..."
-	#print bondarray
-	#raw_input("")
 	return bondarray
 
 def readsinglemoleculeangles(anglespermol, filename):
@@ -554,17 +546,15 @@ def Clash(existingatomdict, newtrialmol, nookatomsexisting, nookatomstrial):
 
 	## Compute if any of our prospective molecules would 
         ## overlap with any of the existing molecules within sigma.
-
 	clash = False
-	#print "atoms in dict: ", nookatomsexisting, " atoms in new mol ", nookatomstrial
-	#raw_input("")
+	#print "Comparing: ", nookatomsexisting, " atoms on original with ", nookatomstrial, " on the trial. "
+	#print existingatomdict, newtrialmol
 	for existatoms in range(1, nookatomsexisting):
 		for trialatoms in range(1, nookatomstrial+1):
 			existatompos = existingatomdict[existatoms][1]
 			trialatompos = newtrialmol[trialatoms][1]
-			#print existatoms, trialatoms
-			#print existingatomdict
-			#raw_input("testing clash")
+			#print existatompos, trialatompos
+			#print existingatomdict[existatoms][5], newtrialmol[trialatoms][5]
 			avsigma = (existingatomdict[existatoms][5] + newtrialmol[trialatoms][5])/2.0
 			displacement = [existatompos[0] - trialatompos[0], existatompos[1] - trialatompos[1], existatompos[2] - trialatompos[2]]
 			displacement[0] = displacement[0] - float(cfg.xL) * round(displacement[0]/float(cfg.xL))
@@ -574,7 +564,7 @@ def Clash(existingatomdict, newtrialmol, nookatomsexisting, nookatomstrial):
 			R = math.sqrt(R2)
 			if (R < avsigma):
 				clash = True
-
+				#rint "Clash at ", R
 	return clash
 
 
@@ -587,8 +577,6 @@ def createbilayerproperties(systemdict, systemmoldict, speciesseq, LJdictbytype,
 		for xlip in range(0, int(cfg.squarelipid)):
 			for ylip in range(0, int(cfg.squarelipid)):
 				if (molcurrent <= cfg.totalmol):
-					text = '\rTrying to add molecule: %d' % molcurrent
-					sys.stdout.write(text)
 					speciesint = speciesseq[molcurrent-1]
 					zoffset = -float(cfg.zoffset[speciesint])
 					atomspermol = systemdict[speciesint][0]
@@ -600,9 +588,8 @@ def createbilayerproperties(systemdict, systemmoldict, speciesseq, LJdictbytype,
 						else:
 							cpymolarray = simpleinvertmolecule(atomspermol, cpymolarray)
 					for atom in range(1, atomspermol+1):
+						#print atom, atomtype
 						atomtype = int(cpymolarray[atom][0])
-						#print atommassesall
-						#raw_input()
 						newmass = atommassesall[atomtype]
 						newsigma = LJdictbytype[atomtype][2]
 						newdensity = newmass/(4.0/3.0 * math.pi * (newsigma/2.0)**3)
@@ -613,12 +600,19 @@ def createbilayerproperties(systemdict, systemmoldict, speciesseq, LJdictbytype,
 						cpymolarray[atom][2] = molcurrent
 						cpymolarray[atom][5] = newsigma
 						cpymolarray[atom][6] = newdensity 
+						newsystemmoldictbyatom[atomcurrent] = cpymolarray[atom]
+						atomcurrent+=1
+						text = '\rAdding molecule: %d' % molcurrent
+						#print len(str(molcurrent))
+						sys.stdout.write(text)
+						#sys.stdout.write("\b\bHi")
+						#print atomcurrent, molcurrent
+						#print molcurrent
 					### Randomize things
 					if (cfg.MixPhaseRandom):
 						clash = True
 						while clash:
 							randdispl = [float(cfg.xL)*random.random(), float(cfg.yL)*random.random(), float(cfg.zL)*random.random()]
-							#print "Trial..."
 							for atom in range(1, atomspermol+1):
 								cpymolarray[atom][1][0] += randdispl[0]
 								cpymolarray[atom][1][1] += randdispl[1]
@@ -626,14 +620,12 @@ def createbilayerproperties(systemdict, systemmoldict, speciesseq, LJdictbytype,
 								cpymolarray[atom][1][0] = cpymolarray[atom][1][0] % float(cfg.xL)
 								cpymolarray[atom][1][1] = cpymolarray[atom][1][1] % float(cfg.yL)
 								cpymolarray[atom][1][2] = cpymolarray[atom][1][2] % float(cfg.zL)
-							clash = Clash(newsystemmoldictbyatom, cpymolarray, atomcurrent-1, atomspermol)
 
-					for atom in range(1, atomspermol+1):
-						newsystemmoldictbyatom[atomcurrent] = cpymolarray[atom]
-						atomcurrent+=1				
+							clash = Clash(newsystemmoldictbyatom, cpymolarray, atomcurrent-atomspermol, atomspermol)
 
-					#print cpymolarray
-					#raw_input("")
+					
+
+
 					molcurrent+=1
 	return newsystemmoldictbyatom, atomcurrent-1		
 
@@ -710,9 +702,7 @@ def createbilayerpropertiesimpropers(systemdict, systemimpropdict, speciesseq, m
 def createatomdataLAMMPS(totalatoms, molarray, offset):
 	atomdata = ""
 	for atom in range(1, totalatoms+1):
-		#print atom+offset, molarray[atom][0], molarray[atom][1][0], molarray[atom][1][1], molarray[atom][1][2], molarray[atom][2], molarray[atom][3], molarray[atom][4][0], molarray[atom][4][1], molarray[atom][4][2], molarray[atom][5], molarray[atom][6]
-		
-		atomdata += '%7d %7d %10.3f %10.3f %10.3f %7d %10.3f %10.3f %10.3f %10.3f %7.3f %7.3f \n' % (atom+offset, molarray[atom][0], molarray[atom][1][0], molarray[atom][1][1], molarray[atom][1][2], molarray[atom][2], molarray[atom][3], molarray[atom][4][0], molarray[atom][4][1], molarray[atom][4][2], molarray[atom][5], molarray[atom][6])
+		atomdata += '%7d %7d %10.3f %10.3f %10.3f %7d %7d %10.3f %10.3f %10.3f %7.3f %7.3f \n' % (atom+offset, molarray[atom][0], molarray[atom][1][0], molarray[atom][1][1], molarray[atom][1][2], molarray[atom][2], molarray[atom][3], molarray[atom][4][0], molarray[atom][4][1], molarray[atom][4][2], molarray[atom][5], molarray[atom][6])
 	return atomdata
 
 
@@ -744,6 +734,7 @@ def createimpropersdataLAMMPS(totalbends, molarray, offset):
 		benddata += '%7d %7d %7d %7d %7d %7d\n' % (int(bend)+int(offset), int(molarray[bend][0]), int(molarray[bend][1]), int(molarray[bend][2]), int(molarray[bend][3]), int(molarray[bend][4]))	
 	return benddata
 
+
 def createnewfileLAMMPS(buildtxt):
 	f = open(cfg.outputsystemfile, "w")
 	f.write(buildtxt)
@@ -755,12 +746,6 @@ def membranestats():
 
 def main():
 	intspecies = 0; systemdict = {}; systemmoldict = {}; systembonddict = {}; systembenddict = {}; systemdiheddict = {}; systemimprop = {};
-	volumesys = float(cfg.xL * cfg.yL * cfg.zL)
-	if (cfg.MixPhaseRandom):
-		#print "The apprx. vol per water (including solute) ", volumesys/int(cfg.noofwaters)
-		print "The apprx. vol per water (excluding solute) ", (volumesys - (cfg.totalmol)*(cfg.approxvolmol)[0])/int(cfg.noofwaters) 
-		print "The volume of the solute has been taken as: ", (cfg.approxvolmol)
-	systemmoldict.clear()
 	atomtypesall = getatomtypes()
 	atommassesall = getatommasses()
 	LJarray = readLJsingles(atomtypesall)
@@ -808,12 +793,10 @@ def main():
 	systemfilecontent += formatdihedmol + "\n\n\n\n"
 	systemfilecontent += formatimpropmol + "\n\n\n\n"
 	createnewfileLAMMPS(systemfilecontent)
-	
-	if int(cfg.totalmol) > 0 and not (cfg.MixPhaseRandom):
+	if int(cfg.totalmol) > 0:
 		print 'Creating %d molecules' % (cfg.totalmol)
 		print 'Initial area per lipid: %f Angstroms sq.' % membranestats()
-		
-		
+		volumesys = float(cfg.xL * cfg.yL * cfg.zL)
 		volumesol = float(cfg.empericalvolume*cfg.noofwaters)
 		print 'Initial volume per lipid: %s Angstroms cbd.' % ((volumesys - volumesol)/(cfg.totalmol))
 
@@ -822,6 +805,8 @@ def main():
 	### Additionaly we scale LJ pairs and scale bonded interactions with scaling factor 
 	### pulled in from 'cfg' file.
 
+	
+	
 	LJpairs, no_pairs = readLJpairs(atomtypesall)
 	forcefieldLJ = buildLJpairs(atomtypesall, LJarray, LJpairs, no_pairs)
 	bondscaledsigmaarray = readcomputebondpairs(totalatomssolute, totalbondssolute, atomtypesall, bondtypessolute, newsystembonddictbybond, newsystemmoldictbyatom, float(cfg.bondscaling), (cfg.excludescaling))

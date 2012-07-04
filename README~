@@ -7,26 +7,25 @@
 ###                                                                                              ###
 ###   All code is "as is" and there is no implied warranty.                                      ###
 ###                                                                                              ###
-###   Donovan 2011-2012                    		                                         ###
+###   Donovan, Orsi and Essex (2011)		                                                 ###
 ###                                                                                              ###
 ####################################################################################################
 
 What you need to run
-====================
+---------------------
 
-1. A python interpreter (http://python.org) and a copy of LAMMPS 
+1. A python interpreter (python.org) and a copy of LAMMPS 
 (LAMMPS Molecular Dynamics Simulator: http://lammps.sandia.gov/) 
 
 2. The code files included in this package - you will want to replace some of these default 
 files with your own lipid files depending on your own desires and preferences. The included 
 files will work with the force-field of Orsi et al, but you may use whatever force field is 
 appropriate to your systems. The current example uses a DOPC molecule (Orsi et al) as an example, 
-hence the use of the suffix <dopc>, but you can use any lipid scheme of your choosing from CG to
-atomstic.
+hence the use of the suffix <dopc>, but you can use any lipid scheme of your choosing.
 
 
 File structure
-==============
+--------------
  ___________________________________________________________________________________________________
 |<Input files>            |                                                                         |
 |_________________________|_________________________________________________________________________|
@@ -36,7 +35,7 @@ File structure
 |                         |of tails. All filenames that are used for reading and writing can be     |
 |                         |found in this file.                                                      |  
 |_________________________|_________________________________________________________________________|
-|meta.sys                 |Master meta file. (Lennard Jones (LJ), LJ scaling). Not normally part of |
+|meta.dopc                |Master meta file. (Lennard Jones (LJ), LJ scaling). Not normally part of |
 |                         |the LAMMPS toolkit, we use this as a master file. It contains Lennard    |
 |                         |Jones interaction parameters such as sigma and epsilon which will be     |
 |                         |propagated through the system. This file is utilized in the construction |
@@ -62,19 +61,19 @@ File structure
 |_________________________|_________________________________________________________________________|
 |<Generated files>        |                                                                         |
 |_________________________|_________________________________________________________________________|
-|forcefield.sys           |Computed force field based on cfg.py and meta.dopc. Portion of the file  |
+|forcefield.dopc_scaled   |Computed force field based on cfg.py and meta.dopc. Portion of the file  |
 |			  |generated and recomputed from <meta.dopc> according to your preferences. |
 |                         |This file could be renamed to overwrite the read-in force field if       |
 |                         |desired.                                                                 |
 |_________________________|_________________________________________________________________________|
-|data.sys                 |Output datafile computed from input files.                               |
+|data.sys                 |Output datafile computed from input files gives.                         |
 |			  |                                                                         |
 |                         |                                                                         |
 |_________________________|_________________________________________________________________________|
 
 
 Building the system
-===================
+--------------------
 
 A. Get a single molecule system working. It is imperative that a single lipid system works on its own 
 since systems will be built on these foundations. Ensure you have a system with no errors that runs 
@@ -92,7 +91,7 @@ lipid molecules. Check the filenames in the cfg.py correspond to filenames in <i
 appropriate. If you wish to use a scaled nearest neighbour bonding scheme based on sigma values 
 of individual atoms then set the value in this file.
 
-N-component systems are modelled with the following line in cfg file:
+N-phase systems are modelled with the following line in cfg file:
 
 	inputsinglemoleculefile = ["data.moleculeA", "data.moleculeB", "data.moleculeC", ...]
 
@@ -125,68 +124,35 @@ E. If you are good to run then simply run:
 	 python SmartBuilder.py
 
 This will rebuild the following files:
-	forcefield.sys
+	forcefield.dopc_scaled
 	data.sys
 
 You can then run the LAMMPS simulation in the usual way i.e.:
 
 	./lmp_serial < in.dopc
 
-where lmp_serial is the compiled executable generated from LAMMPS. Note that you may need to follow
-instructions elsewhere to get the example forcefield working.
-
 
 LAMMPS notes:
 
 Adding pair styles and dipole bending
-=====================================
+-------------------------------------
 
 The example lipids given rely on point dipole routines and these can be downloaded from here and 
 included into your build of LAMMPS before compilation to ensure that these can be run. We are working
 on a more 'Vanilla' lipid example that you can use right out of the box with recourse to downloading 
 and installing.
 
+More information on the point dipole schemes employed is
+
+
 Notes on numbering (atoms and molecules)
-========================================
+----------------------------------------
 
 All numbering should be contiguous where possible. We cannot test for every variation, so with your 
 numbering scheme for atoms and molecules please ensure where possible numbers run contiguously.
 
 We start molecule numbering from zero (0) and atoms from one (1) and this is partly historical and
 we suggest that you do the same to ensure you don't run into obvious problems.
-
-Packing of solute and solvent
-========================================
-
-The routines for packing lipids and water molecules are different. The packing of solvent or water molecules will
-attempt to pack water molecules into the system with the *optimvolume* set in the <cfg.py> file. However it may not
-be possible to get as low as you request. There is an output which tells you what the localized density of the solvent
-is after building and you can use this for guidance.
-
-If it is not possible to pack in the solvent molecules into the system volume, then a warning will suggest that you 
-increase zL, but the converse will not occur, if you pack water molecules with a low density. Hence you will need to
-use your judgement to ensure that you have the right conditions at runtime.
-
-Setting MixPhaseRandom = True in <cfg.py> will ensure that the lipids and water molecules are started from random
-cartesian placements without rotation. It will look rather as if a membrane has been blown apart. A rotation matrix
-can be added if one thinks that is required. It may take a while for large systems to add all molecules as there is a
-clash algorithm which ensure that molecules do not overlap at the initial start-frame. 
-
-Using your own ForceField
-==========================
-
-Adding your own forcefield is relatively straightforward. You can use meta.* file to specify the LJ parameters of the
-system. For example the epsilon and sigma values of the beads that make up the forcefield. The Scaling section of 
-meta.* handles the cases where you wish to deviate from standard non LB mixing rules and this is done via a scaling term
-which scales the standard LB (Lorentz Betherlot) mixing rules by a factor of your choosing.
-
-Different potential functions can be chosen from the LAMMPS forcefields on offer.
-
-References
-==========================
-
-For the DOPC model employed, you can find more the model and how to use with the standard forcefield here:
-
 
 
 

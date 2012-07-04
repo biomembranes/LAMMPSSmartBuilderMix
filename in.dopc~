@@ -1,7 +1,7 @@
 units		real
 atom_style	hybrid angle dipole sphere 
-read_data 	data.sys
-include 	forcefield.sys
+read_data 	data.dopc_sys
+include 	forcefield.dopc_scaled
 special_bonds	lj/coul 0.0 1.0 1.0 
 velocity	all create 0.0 87287 
 
@@ -13,8 +13,8 @@ group		water type 1
 
 
 fix		integrate all nve/sphere update dipole
-fix 		tempLip lipids langevin 300.0 300.0 100.0 48279 omega yes
-fix 		tempWater water langevin 300.0 300.0 100.0 48279 omega yes
+fix 		tempLip lipids langevin 303.15 303.15 100.0 48279 omega yes
+fix 		tempWater water langevin 303.15 303.15 100.0 48279 omega yes
 
 fix             removeMomentum all momentum 1 linear 1 1 1
 
@@ -26,7 +26,7 @@ thermo		1000
 #dump		trj all custom 100 dump.trj id type mol x y z mux muy muz
 #dump_modify	trj sort id
 
-dump            1 all xyz 1000 bilayer.xyz
+dump            1 all xyz 10000 bilayer.xyz
 #dump_modify	trj sort id
 
 timestep	0.1

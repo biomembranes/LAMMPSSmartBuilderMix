@@ -1,0 +1,57 @@
+pair_style dipole/sf 12
+bond_style harmonic 
+angle_style hybrid cosine/squared dipole
+
+#    type  mass [grams/mol]
+mass    1   40.000 # water
+mass    2   90.000 # choline
+mass    3   90.000 # phosphate
+mass    4   62.000 # glycerol
+mass    5   62.000 # ester
+mass    6   42.000 # tail
+
+# LJ coeffs: iType jType epsilon_ij [kcal/mol] sigma_ij [angstrom]
+pair_coeff       1       1   0.466000   3.000000
+pair_coeff       1       2   0.817462   4.100000
+pair_coeff       1       3   0.817462   4.100000
+pair_coeff       1       4   0.667455   3.800000
+pair_coeff       1       5   0.667455   3.800000
+pair_coeff       1       6   0.624533   3.750000
+pair_coeff       2       2   1.434000   5.200000
+pair_coeff       2       3   1.434000   5.200000
+pair_coeff       2       4   1.170856   4.900000
+pair_coeff       2       5   1.170856   4.900000
+pair_coeff       2       6   1.095563   4.850000
+pair_coeff       3       3   1.434000   5.200000
+pair_coeff       3       4   1.170856   4.900000
+pair_coeff       3       5   1.170856   4.900000
+pair_coeff       3       6   1.095563   4.850000
+pair_coeff       4       4   0.956000   4.600000
+pair_coeff       4       5   0.956000   4.600000
+pair_coeff       4       6   0.894523   4.550000
+pair_coeff       5       5   0.956000   4.600000
+pair_coeff       5       6   0.894523   4.550000
+pair_coeff       6       6   0.837000   4.500000
+
+
+
+# harmonic bond coeffs:  K [kcal/(mol*angstrom^2)] r0 [angstrom] 
+bond_coeff       1   1.506000   4.680000
+bond_coeff       2   1.506000   4.410000
+bond_coeff       3   1.506000   4.140000
+bond_coeff       4   1.506000   4.095000
+bond_coeff       5   1.506000   4.050000
+
+
+
+angle_coeff 1 cosine/squared 3.5851 115.00 # choline-phosphate-glycerol
+angle_coeff 2 cosine/squared 3.5851 160.00 # phosphate-glycerol-ester
+angle_coeff 3 cosine/squared 3.5851 180.00 # gly-est-tail, tail-tail-tail (sat)
+angle_coeff 4 cosine/squared 3.5851 120.00 # tail-tail-tail (unsat)
+# dipole angle coeffs:  K [kcal/mol] gamma0 [degrees] 
+angle_coeff 5  dipole    1.195  0.000 # glyDipole-phosphate, estDipole-tail
+angle_coeff 6  cosine/squared 3.5851  90.000 # glyDipole-phosphate, estDipole-tail
+
+
+
+
